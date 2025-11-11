@@ -75,9 +75,28 @@ export default function VerifyPage() {
         
         // Extract timestamps from revisions
         const timestamps = revisionEntries
-          .map(([_, rev]: [string, any]) => rev.local_timestamp)
-          .filter(Boolean)
-          .map((ts: string) => new Date(ts).getTime())
+          .map(([_, rev]: [string, any]) => {
+            const ts = rev.local_timestamp
+            if (!ts) return null
+            
+            // Parse timestamp format: YYYYMMDDHHMMSS (e.g., "20251111211356")
+            if (typeof ts === 'string' && ts.length === 14) {
+              const year = parseInt(ts.substring(0, 4))
+              const month = parseInt(ts.substring(4, 6)) - 1 // JS months are 0-indexed
+              const day = parseInt(ts.substring(6, 8))
+              const hour = parseInt(ts.substring(8, 10))
+              const minute = parseInt(ts.substring(10, 12))
+              const second = parseInt(ts.substring(12, 14))
+              
+              const date = new Date(year, month, day, hour, minute, second)
+              return date.getTime()
+            }
+            
+            // Fallback: try parsing as ISO string or use as number
+            const parsed = typeof ts === 'number' ? ts : new Date(ts).getTime()
+            return isNaN(parsed) ? null : parsed
+          })
+          .filter((ts): ts is number => ts !== null)
           .sort((a, b) => a - b)
         
         // Extract wallet address from first signature revision
@@ -313,23 +332,36 @@ export default function VerifyPage() {
                 {/* WHEN Section */}
                 <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
                   <h3 className="text-lg font-bold mb-3 text-purple-400">⏰ WHEN</h3>
+                  
+                  {/* Recording Time Range */}
+                  {verificationResult.extractedInfo?.startTime && 
+                   verificationResult.extractedInfo?.endTime && 
+                   !isNaN(verificationResult.extractedInfo.startTime) && 
+                   !isNaN(verificationResult.extractedInfo.endTime) && (
+                    <div className="mb-4">
+                      <div className="text-gray-400 text-xs mb-1">Recording Time</div>
+                      <div className="font-medium text-base">
+                        {new Date(verificationResult.extractedInfo.startTime).toLocaleString('en-US', {
+                          month: '2-digit',
+                          day: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                          hour12: true
+                        })}
+                        <span className="text-gray-500 mx-2">→</span>
+                        {new Date(verificationResult.extractedInfo.endTime).toLocaleString('en-US', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                          hour12: true
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  
                   <div className="grid grid-cols-2 gap-4 text-sm">
-                    {verificationResult.extractedInfo?.startTime && (
-                      <div>
-                        <div className="text-gray-400 text-xs mb-1">Recording Started</div>
-                        <div className="font-medium">
-                          {new Date(verificationResult.extractedInfo.startTime).toLocaleString()}
-                        </div>
-                      </div>
-                    )}
-                    {verificationResult.extractedInfo?.endTime && (
-                      <div>
-                        <div className="text-gray-400 text-xs mb-1">Recording Ended</div>
-                        <div className="font-medium">
-                          {new Date(verificationResult.extractedInfo.endTime).toLocaleString()}
-                        </div>
-                      </div>
-                    )}
                     {verificationResult.metadata?.duration && (
                       <div>
                         <div className="text-gray-400 text-xs mb-1">Duration</div>
@@ -406,11 +438,11 @@ export default function VerifyPage() {
                               {w.eventId}
                             </div>
                           </div>
-                          {w.relays && (
+                          {w.relays && Array.isArray(w.relays) && w.relays.filter((r: string) => r).length > 0 && (
                             <div className="mt-2">
                               <div className="text-xs text-gray-500 mb-1">Relays</div>
                               <div className="text-xs text-gray-400">
-                                {w.relays.join(', ')}
+                                {w.relays.filter((r: string) => r && r.trim()).join(', ')}
                               </div>
                             </div>
                           )}
