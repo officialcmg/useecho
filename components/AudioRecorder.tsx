@@ -287,13 +287,77 @@ export function AudioRecorder() {
     await new Promise((resolve) => setTimeout(resolve, 1000))
 
     // ALWAYS witness the final chunk (creates bookends for the recording)
-    if (chunks.length > 0 && aquaTree) {
+    if (chunks.length > 0 && aquaTree && nostrKeys) {
       const lastChunk = chunks[chunks.length - 1]
       const lastChunkWitnessed = witnesses.some(w => w.chunkIndex === lastChunk.chunkIndex)
       
       if (lastChunk.verificationHash && !lastChunkWitnessed) {
         console.log('🌐 Witnessing final chunk:', lastChunk.chunkIndex + 1)
         await witnessChunk(lastChunk.chunkIndex, lastChunk.verificationHash)
+      }
+
+      // Create final revision with combined audio file hash
+      console.log('📦 Creating final revision with combined file...')
+      try {
+        if (!aquafier) {
+          console.error('   ❌ Aquafier not initialized')
+          return
+        }
+
+        const audioBlobs = chunks.map((c) => c.audioBlob)
+        const combinedAudio = new Blob(audioBlobs, { type: 'audio/webm' })
+        
+        // Get the last hash to link from
+        const lastHash = lastChunk.verificationHash
+        
+        if (lastHash) {
+          const finalRevisionResult = await createContentRevision(
+            aquafier,
+            aquaTree,
+            combinedAudio,
+            'recording_combined.webm',
+            lastHash
+          )
+
+          if (isOk(finalRevisionResult)) {
+            const updatedTree = finalRevisionResult.data.aquaTree!
+            
+            // Get the final revision hash (latest key in revisions)
+            const revisionKeys = Object.keys(updatedTree.revisions)
+            const finalHash = revisionKeys[revisionKeys.length - 1]
+            
+            setAquaTree(updatedTree)
+            console.log('   ✅ Final revision created:', finalHash)
+
+            // Sign the final revision with proper message format
+            if (user?.wallet?.address && finalHash) {
+              const message = `I sign this revision: [${finalHash}]`
+              const signatureResponse = await signMessage({ message }, { 
+                uiOptions: { showWalletUIs: false }
+              })
+              const signature = typeof signatureResponse === 'object' && 'signature' in signatureResponse
+                ? signatureResponse.signature
+                : signatureResponse
+
+              if (typeof signature === 'string') {
+                const signResult = await signRevision(
+                  aquafier,
+                  updatedTree,
+                  signature,
+                  user.wallet.address,
+                  finalHash
+                )
+
+                if (isOk(signResult)) {
+                  setAquaTree(signResult.data.aquaTree!)
+                  console.log('   ✅ Final revision signed')
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('   ❌ Failed to create final revision:', err)
       }
     }
   }
@@ -339,6 +403,86 @@ export function AudioRecorder() {
     jsonLink.download = `echo-recording-${Date.now()}.aqua.json`
     jsonLink.click()
     URL.revokeObjectURL(jsonUrl)
+  }
+
+  const handleUploadToIPFS = async () => {
+    if (chunks.length === 0 || !aquaTree || !user?.wallet?.address) {
+      alert('No recording to upload or user not connected')
+      return
+    }
+
+    try {
+      setIsProcessing(true)
+      setProcessingStatus('📤 Preparing files...')
+
+      // 1. Create combined audio blob
+      const audioBlobs = chunks.map((c) => c.audioBlob)
+      const audioFile = new Blob(audioBlobs, { type: 'audio/webm' })
+
+      // 2. Create aqua JSON blob
+      const exportData = {
+        aquaTree: aquaTree,
+        metadata: {
+          totalChunks: chunks.length,
+          duration: chunks.length * 2,
+          chunkDuration: 2,
+          privyWallet: user.wallet.address,
+          nostrPubkey: nostrKeys?.npub,
+          witnesses,
+        },
+      }
+      const aquaJson = JSON.stringify(exportData, null, 2)
+      const aquaFileBlob = new Blob([aquaJson], { type: 'application/json' })
+
+      // 3. Create form data
+      const formData = new FormData()
+      formData.append('audio', audioFile, 'recording.webm')
+      formData.append('aqua', aquaFileBlob, 'proof.json')
+      formData.append('evmAddress', user.wallet.address)
+      if (nostrKeys?.npub) {
+        formData.append('nostrNpub', nostrKeys.npub)
+      }
+
+      // 4. Upload via API
+      setProcessingStatus('☁️ Uploading to IPFS...')
+      console.log('📤 Uploading to server...')
+      
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Upload failed')
+      }
+
+      const result = await response.json()
+
+      console.log('✅ Upload successful!')
+      console.log('🔗 Share URL:', result.shareUrl)
+
+      // 5. Show share URL to user
+      setProcessingStatus('✅ Upload complete!')
+      
+      // Copy to clipboard
+      await navigator.clipboard.writeText(result.shareUrl)
+
+      // Show success message
+      alert(
+        `✅ Recording uploaded to IPFS!\n\n` +
+        `🔗 Share link (copied to clipboard):\n${result.shareUrl}\n\n` +
+        `📦 Audio CID: ${result.recording.audio_cid}\n` +
+        `📄 Proof CID: ${result.recording.aqua_cid}`
+      )
+
+    } catch (error) {
+      console.error('❌ Upload error:', error)
+      alert(`❌ Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setIsProcessing(false)
+      setProcessingStatus('')
+    }
   }
 
   if (!ready || !authenticated) {
@@ -486,6 +630,30 @@ export function AudioRecorder() {
           </>
         )}
       </div>
+
+      {/* Upload to IPFS Button */}
+      {chunks.length > 0 && !isRecording && (
+        <button
+          onClick={handleUploadToIPFS}
+          disabled={isProcessing}
+          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed py-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition shadow-lg"
+          title="Upload to IPFS and get a shareable link"
+        >
+          {isProcessing ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              {processingStatus || 'Uploading...'}
+            </>
+          ) : (
+            <>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              Upload & Share
+            </>
+          )}
+        </button>
+      )}
 
       {/* Nostr Identity */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
