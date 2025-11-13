@@ -36,12 +36,13 @@ export default function Home() {
           <div className="flex items-center justify-center gap-3 flex-wrap pt-2">
             {/* Aqua Protocol */}
             <div className="flex items-center gap-2 px-4 py-2 bg-gray-900/50 border border-gray-800/50 rounded-lg backdrop-blur-sm hover:border-purple-500/30 transition-colors">
-              <div className="relative w-5 h-5">
+              <div className="relative w-5 h-5 flex items-center justify-center">
                 <Image
                   src="https://raw.githubusercontent.com/inblockio/aquafier-js/refs/heads/main/web/public/images/ico.png"
                   alt="Aqua Protocol"
                   width={20}
                   height={20}
+                  unoptimized
                   className="object-contain"
                 />
               </div>
@@ -50,13 +51,15 @@ export default function Home() {
 
             {/* Nostr */}
             <div className="flex items-center gap-2 px-4 py-2 bg-gray-900/50 border border-gray-800/50 rounded-lg backdrop-blur-sm hover:border-orange-500/30 transition-colors">
-              <div className="relative w-5 h-5">
+              <div className="relative w-5 h-5 flex items-center justify-center">
                 <Image
-                  src="https://haven.accioly.social/cfa0d8344c7577bde446d35bb1d61c1c65b07aeb0897169bff6bd44f03f00911.svg"
+                  src="https://raw.githubusercontent.com/satscoffee/nostr_icons/75b4f001d517220748d36360d21fc21f59ad431e/nostr_logo_blk.svg"
                   alt="Nostr"
                   width={20}
                   height={20}
-                  className="object-contain"
+                  unoptimized
+                  className="object-contain invert"
+                  style={{ width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '100%' }}
                 />
               </div>
               <span className="text-sm text-gray-300">Nostr</span>
@@ -64,13 +67,15 @@ export default function Home() {
 
             {/* IPFS */}
             <div className="flex items-center gap-2 px-4 py-2 bg-gray-900/50 border border-gray-800/50 rounded-lg backdrop-blur-sm hover:border-cyan-500/30 transition-colors">
-              <div className="relative w-5 h-5">
+              <div className="relative w-5 h-5 flex items-center justify-center">
                 <Image
                   src="https://docs.ipfs.tech/images/ipfs-logo.svg"
                   alt="IPFS"
                   width={20}
                   height={20}
+                  unoptimized
                   className="object-contain"
+                  style={{ width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '100%' }}
                 />
               </div>
               <span className="text-sm text-gray-300">IPFS</span>

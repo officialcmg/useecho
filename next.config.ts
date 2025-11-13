@@ -11,10 +11,6 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'haven.accioly.social',
-      },
-      {
-        protocol: 'https',
         hostname: 'docs.ipfs.tech',
       },
     ],

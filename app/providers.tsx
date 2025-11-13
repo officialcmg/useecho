@@ -11,6 +11,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    // Note: suppressHydrationWarning in layout.tsx handles Privy's modal hydration warnings
+    // This is a known issue with Privy's modal rendering invalid HTML structure (<div> in <p>)
+    // See: https://github.com/privy-io/privy-js/issues
     <PrivyProvider
       appId={appId}
       config={{
