@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "echo - Tamper-Proof Audio Recording",
+  title: "useecho - Tamper-Proof Audio Recording",
   description: "Record audio with cryptographic verification using Aqua Protocol and Nostr",
   icons: {
     icon: '/logo-icon.png',

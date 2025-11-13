@@ -23,7 +23,7 @@ export function Header() {
             <div className="relative">
               <Image 
                 src="/logo-icon.png" 
-                alt="echo logo" 
+                alt="useecho logo" 
                 width={40} 
                 height={40}
                 className="rounded-xl transition-transform group-hover:scale-105"
@@ -31,7 +31,7 @@ export function Header() {
               <div className="absolute inset-0 bg-blue-500/20 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
             </div>
             <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">echo</h1>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">useecho</h1>
               <p className="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">Tamper-Proof Audio</p>
             </div>
           </Link>

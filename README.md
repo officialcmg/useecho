@@ -1,8 +1,8 @@
-# echo 🎙️
+# useecho 🎙️
 
 **Tamper-Proof Audio Recording with Cryptographic Verification**
 
-echo is a revolutionary audio recording app that creates unforgeable proof of authenticity using:
+useecho is a revolutionary audio recording app that creates unforgeable proof of authenticity using:
 - **Aqua Protocol** for cryptographic file verification
 - **Privy** for seamless email authentication  
 - **Nostr** for decentralized witnessing
@@ -70,7 +70,7 @@ Open [http://localhost:3000](http://localhost:3000)
 ## 📁 Project Structure
 
 ```
-echo/
+useecho/
 ├── app/
 │   ├── layout.tsx          # Root layout with Privy
 │   ├── page.tsx            # Recording page

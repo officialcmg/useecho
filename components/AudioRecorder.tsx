@@ -426,7 +426,7 @@ export function AudioRecorder() {
         const audioUrl = URL.createObjectURL(finalAudio)
         const audioLink = document.createElement('a')
         audioLink.href = audioUrl
-        audioLink.download = `echo-recording-${timestamp}.webm`
+        audioLink.download = `useecho-recording-${timestamp}.webm`
         audioLink.click()
         URL.revokeObjectURL(audioUrl)
         return
@@ -467,7 +467,7 @@ export function AudioRecorder() {
     const jsonUrl = URL.createObjectURL(jsonBlob)
     const jsonLink = document.createElement('a')
     jsonLink.href = jsonUrl
-    jsonLink.download = `echo-recording-${Date.now()}.aqua.json`
+    jsonLink.download = `useecho-recording-${Date.now()}.aqua.json`
     jsonLink.click()
     URL.revokeObjectURL(jsonUrl)
   }
