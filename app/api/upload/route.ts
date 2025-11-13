@@ -60,8 +60,30 @@ export async function POST(request: NextRequest) {
     console.log('   ✅ Recording saved to database')
     console.log('   🔗 Share ID:', recording.share_id)
 
-    // 6. Return success with share URL (derive origin from request)
-    const origin = request.nextUrl.origin
+    // 6. Return success with share URL (robust origin detection behind proxies)
+    const rawForwardedProto = request.headers.get('x-forwarded-proto') || undefined
+    const rawForwardedHost = request.headers.get('x-forwarded-host') || undefined
+    const xRealHost = request.headers.get('x-real-host') || undefined
+    const hostHeader = request.headers.get('host') || undefined
+
+    // If multiple values are present, take the first (original client)
+    const forwardedProto = rawForwardedProto?.split(',')[0]?.trim()
+    const forwardedHost = rawForwardedHost?.split(',')[0]?.trim()
+
+    // Helper: determine if a host is local
+    const isLocalHost = (h?: string) => !!h && (/^localhost(:\d+)?$/i.test(h) || /^127\.0\.0\.1(?::\d+)?$/.test(h))
+
+    // Pick the first non-local host in priority order
+    const hostCandidateOrder = [forwardedHost, xRealHost, hostHeader, request.nextUrl.host]
+    const host = hostCandidateOrder.find(h => h && !isLocalHost(h)) || request.nextUrl.host
+
+    // Protocol: prefer forwarded proto, else derive from nextUrl; force https for public hosts
+    let protocol = (forwardedProto || request.nextUrl.protocol.replace(':', '') || 'https').toLowerCase()
+    if (protocol !== 'https' && host && /\.(netlify|vercel|railway)\.app$/i.test(host)) {
+      protocol = 'https'
+    }
+
+    const origin = `${protocol}://${host}`
     const shareUrl = `${origin}/share/${recording.share_id}`
 
     return NextResponse.json({
