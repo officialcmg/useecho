@@ -6,7 +6,7 @@ import { Header } from '@/components/Header'
 import { VerificationDisplay } from '@/components/VerificationDisplay'
 import { CustomAudioPlayer } from '@/components/CustomAudioPlayer'
 import { Loader2, PlayCircle, CheckCircle, XCircle } from 'lucide-react'
-import { createAquafier, verifyAquaTree, isOk } from '@/lib/aqua/aquafier'
+import { createAquafier, verifyAquaTreeWithExternalFiles, isOk, isErr } from '@/lib/aqua/aquafier'
 
 interface ShareData {
   recording: {
@@ -97,15 +97,16 @@ export default function SharePage() {
         const audioBlob = base64ToBlob(shareData.audioData, 'audio/webm')
         const audioContent = await audioBlob.arrayBuffer()
         fileObjects.push({
-          fileName: 'recording_combined.webm',
+          fileName: 'recording_combined.webm', // Must match final revision filename in AquaTree
           fileContent: new Uint8Array(audioContent),
           path: './recording_combined.webm'
         })
       }
       
-      const result = await verifyAquaTree(aquafier, reconstructedTree, fileObjects)
+      const { structureSuccess, structureData, structureErrors, contentVerified, contentData, contentErrors, overallSuccess } = 
+        await verifyAquaTreeWithExternalFiles(aquafier, reconstructedTree, fileObjects)
 
-      if (isOk(result)) {
+      if (overallSuccess) {
         console.log('✅ Verification PASSED')
         
         // Extract info
@@ -148,8 +149,18 @@ export default function SharePage() {
           rev.revision_type === 'signature'
         )
         
-        // Calculate proper end time using startTime + duration
-        const startTime = timestamps.length > 0 ? timestamps[0] : null
+        // Calculate proper start and end time
+        // Start time should be the ACTUAL recording start, not first revision timestamp
+        // First FILE revision is created ~2 seconds into recording (first chunk)
+        // So we subtract the chunk duration to get the actual start
+        const firstTimestamp = timestamps.length > 0 ? timestamps[0] : null
+        const chunkDurationMs = shareData.aquaData.metadata?.chunkDuration 
+          ? shareData.aquaData.metadata.chunkDuration * 1000 
+          : 2000 // Default 2 seconds
+        
+        // Start time = first revision timestamp - chunk duration
+        const startTime = firstTimestamp ? (firstTimestamp - chunkDurationMs) : null
+        
         const durationMs = shareData.aquaData.metadata?.duration 
           ? shareData.aquaData.metadata.duration * 1000 
           : 0
@@ -157,9 +168,11 @@ export default function SharePage() {
         
         setVerificationResult({
           success: true,
+          audioFileProvided: true, // Share pages always include the audio file
+          audioContentVerified: contentVerified, // Now actually checks if content verification passed
           aquaTree: reconstructedTree,
           metadata: shareData.aquaData.metadata,
-          details: result.data,
+          details: structureData,
           extractedInfo: {
             startTime,
             endTime,
@@ -171,9 +184,13 @@ export default function SharePage() {
         })
       } else {
         console.log('❌ Verification FAILED')
+        console.log('   Structure errors:', structureErrors)
+        console.log('   Content errors:', contentErrors)
         setVerificationResult({
           success: false,
-          errors: result.data
+          audioFileProvided: true, // Audio file was provided but verification failed
+          audioContentVerified: false, // Audio content verification failed
+          errors: structureErrors || contentErrors || []
         })
       }
     } catch (err) {

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Header } from '@/components/Header'
 import { VerificationDisplay } from '@/components/VerificationDisplay'
 import { Upload, CheckCircle, XCircle, Loader2, FileAudio, FileJson } from 'lucide-react'
-import { createAquafier, verifyAquaTree, isOk, isErr } from '@/lib/aqua/aquafier'
+import { createAquafier, verifyAquaTreeWithExternalFiles, verifyFileContentManually, isOk, isErr } from '@/lib/aqua/aquafier'
 
 export default function VerifyPage() {
   const [audioFile, setAudioFile] = useState<File | null>(null)
@@ -67,22 +67,49 @@ export default function VerifyPage() {
         console.log('   🎵 Including audio file for combined file verification...')
         const audioContent = await audioFile.arrayBuffer()
         fileObjects.push({
-          fileName: 'recording_combined.webm',
+          fileName: 'recording_combined.webm', // Must match final revision filename in AquaTree
           fileContent: new Uint8Array(audioContent),
           path: './recording_combined.webm'
         })
       }
       
-      const result = await verifyAquaTree(aquafier, reconstructedTree, fileObjects)
+      const { structureSuccess, structureData, structureErrors, contentVerified, contentData, contentErrors, overallSuccess } = 
+        await verifyAquaTreeWithExternalFiles(aquafier, reconstructedTree, fileObjects)
       
-      console.log('   📊 Verification result:', {
-        isOk: isOk(result),
-        isErr: isErr(result),
-        data: isOk(result) ? result.data : null,
-        errors: isErr(result) ? result.data : null
+      console.log('   📊 SDK Verification result:', {
+        structureSuccess,
+        contentVerified,
+        overallSuccess,
+        structureData,
+        structureErrors,
+        contentData,
+        contentErrors
       })
+      
+      // Manual hash verification if audio file was provided
+      let manualVerificationResult = null
+      if (audioFile) {
+        console.log('   🔐 Performing manual hash verification...')
+        const audioContent = await audioFile.arrayBuffer()
+        manualVerificationResult = await verifyFileContentManually(
+          reconstructedTree,
+          'recording_combined.webm',
+          new Uint8Array(audioContent)
+        )
+        console.log('   📊 Manual verification result:', manualVerificationResult)
+      }
 
-      if (isOk(result)) {
+      // Determine final audio content verification status
+      // Use manual verification if available, otherwise fall back to SDK verification
+      const finalAudioContentVerified = manualVerificationResult 
+        ? manualVerificationResult.success 
+        : contentVerified
+      
+      // Overall success is based on STRUCTURE verification
+      // Even if file verification fails, we still show details if structure passes
+      const finalOverallSuccess = structureSuccess
+
+      if (finalOverallSuccess) {
         console.log('   ✅ Verification PASSED')
         
         // Extract detailed information from AquaTree
@@ -129,8 +156,18 @@ export default function VerifyPage() {
           rev.revision_type === 'signature'
         )
         
-        // Calculate proper end time using startTime + duration
-        const startTime = timestamps.length > 0 ? timestamps[0] : null
+        // Calculate proper start and end time
+        // Start time should be the ACTUAL recording start, not first revision timestamp
+        // First FILE revision is created ~2 seconds into recording (first chunk)
+        // So we subtract the chunk duration to get the actual start
+        const firstTimestamp = timestamps.length > 0 ? timestamps[0] : null
+        const chunkDurationMs = aquaData.metadata?.chunkDuration 
+          ? aquaData.metadata.chunkDuration * 1000 
+          : 2000 // Default 2 seconds
+        
+        // Start time = first revision timestamp - chunk duration
+        const startTime = firstTimestamp ? (firstTimestamp - chunkDurationMs) : null
+        
         const durationMs = aquaData.metadata?.duration 
           ? aquaData.metadata.duration * 1000 
           : 0
@@ -140,8 +177,10 @@ export default function VerifyPage() {
           success: true,
           aquaTree: reconstructedTree,
           metadata: aquaData.metadata,
-          details: result.data,
+          details: structureData,
           audioFileProvided: !!audioFile,
+          audioContentVerified: finalAudioContentVerified, // Use manual verification result if available
+          manualVerification: manualVerificationResult, // Include manual verification details
           extractedInfo: {
             startTime,
             endTime,
@@ -153,12 +192,19 @@ export default function VerifyPage() {
         })
       } else {
         console.log('   ❌ Verification FAILED')
-        console.log('   Errors:', result.data)
+        console.log('   Structure errors:', structureErrors)
+        console.log('   Content errors:', contentErrors)
+        if (manualVerificationResult) {
+          console.log('   Manual verification error:', manualVerificationResult.error)
+        }
         setVerificationResult({
           success: false,
           aquaTree: reconstructedTree,
           metadata: aquaData.metadata,
-          errors: result.data,
+          audioFileProvided: !!audioFile,
+          audioContentVerified: false, // Verification failed
+          manualVerification: manualVerificationResult, // Include manual verification details even on failure
+          errors: structureErrors || contentErrors || (manualVerificationResult?.error ? [manualVerificationResult.error] : []),
         })
       }
     } catch (err) {

@@ -5,6 +5,8 @@ import { CheckCircle } from 'lucide-react'
 interface VerificationDisplayProps {
   verificationResult: {
     success: boolean
+    audioFileProvided?: boolean // Whether actual audio file was included in verification
+    audioContentVerified?: boolean // Whether the audio content actually passed verification
     metadata?: {
       nostrPubkey?: string
       duration?: number
@@ -41,6 +43,25 @@ export function VerificationDisplay({ verificationResult }: VerificationDisplayP
     )
   }
 
+  // Determine audio verification status
+  const audioFileProvided = verificationResult.audioFileProvided
+  const audioContentVerified = verificationResult.audioContentVerified
+
+  // Audio status logic:
+  // - If no audio file provided: Show "metadata only" (blue)
+  // - If audio file provided AND content verified: Show "UNALTERED" (green)
+  // - If audio file provided BUT content NOT verified: Show "TAMPERED" (red)
+  let audioStatus: 'unaltered' | 'tampered' | 'metadata-only'
+  if (!audioFileProvided) {
+    audioStatus = 'metadata-only'
+  } else if (audioFileProvided && audioContentVerified) {
+    // Audio file matches the cryptographic proof
+    audioStatus = 'unaltered'
+  } else {
+    // Audio file does NOT match the cryptographic proof
+    audioStatus = 'tampered'
+  }
+
   return (
     <div className="space-y-6">
       {/* Quick Summary */}
@@ -51,6 +72,81 @@ export function VerificationDisplay({ verificationResult }: VerificationDisplayP
           ✓ <strong>Hash chain verified</strong> - No tampering detected<br />
           ✓ <strong>Timestamps verified</strong> - Progressive real-time recording
         </p>
+      </div>
+
+      {/* Audio Content Integrity - Prominent Section */}
+      <div className={`border-2 rounded-xl p-5 ${
+        audioStatus === 'unaltered' 
+          ? 'bg-green-500/10 border-green-500/40'
+          : audioStatus === 'tampered'
+          ? 'bg-red-500/10 border-red-500/40'
+          : 'bg-blue-500/10 border-blue-500/40'
+      }`}>
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0">
+            {audioStatus === 'unaltered' ? (
+              <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-green-400" />
+              </div>
+            ) : audioStatus === 'tampered' ? (
+              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center text-xl">
+                ⚠️
+              </div>
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-xl">
+                🔐
+              </div>
+            )}
+          </div>
+          <div className="flex-1">
+            <h3 className={`font-bold text-lg mb-2 ${
+              audioStatus === 'unaltered' 
+                ? 'text-green-400' 
+                : audioStatus === 'tampered'
+                ? 'text-red-400'
+                : 'text-blue-400'
+            }`}>
+              {audioStatus === 'unaltered' 
+                ? '🎵 Audio Content: UNALTERED'
+                : audioStatus === 'tampered'
+                ? '⚠️ Audio Content: TAMPERED'
+                : '🔐 Cryptographic Proof Only'
+              }
+            </h3>
+            <p className="text-sm text-gray-300 leading-relaxed">
+              {audioStatus === 'unaltered' ? (
+                <>
+                  <strong>The actual audio file has been verified against the cryptographic proof.</strong>
+                  {' '}The audio content matches the hash embedded in the AquaTree, confirming it has not been 
+                  modified, replaced, or tampered with in any way since recording.
+                </>
+              ) : audioStatus === 'tampered' ? (
+                <>
+                  <strong>VERIFICATION FAILED: The audio file does not match the cryptographic proof.</strong>
+                  {' '}The audio content has been modified, replaced, or corrupted since the original recording. 
+                  This audio cannot be trusted as authentic.
+                </>
+              ) : (
+                <>
+                  <strong>Only the cryptographic metadata was verified.</strong>
+                  {' '}The audio file itself was not included in this verification. The AquaTree proof is valid, 
+                  but we cannot confirm if the audio content matches without the original audio file.
+                </>
+              )}
+            </p>
+            {audioStatus === 'metadata-only' && (
+              <div className="mt-3 text-xs text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded px-3 py-2">
+                💡 <strong>To verify audio content:</strong> Upload both the .aqua.json proof file AND 
+                the .webm audio file on the <a href="/verify" className="underline hover:text-blue-200">/verify</a> page.
+              </div>
+            )}
+            {audioStatus === 'tampered' && (
+              <div className="mt-3 text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded px-3 py-2">
+                🚨 <strong>This audio file is NOT authentic.</strong> Do not trust this recording as evidence.
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* WHO Section */}

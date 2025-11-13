@@ -24,16 +24,16 @@ export async function POST(request: NextRequest) {
     console.log('   Audio:', audioFile.name, audioFile.size, 'bytes')
     console.log('   Aqua:', aquaFile.name, aquaFile.size, 'bytes')
 
-    // 2. Upload audio file to Pinata
+    // 2. Upload audio file to Pinata - KEEP ORIGINAL FILENAME!
     const audioUpload = await pinata.upload.file(audioFile).addMetadata({
-      name: `audio-${Date.now()}.webm`
+      name: audioFile.name // Keep original filename for verification
     })
     
     console.log('   ✅ Audio uploaded:', audioUpload.cid)
 
-    // 3. Upload aqua proof file to Pinata
+    // 3. Upload aqua proof file to Pinata - KEEP ORIGINAL FILENAME!
     const aquaUpload = await pinata.upload.file(aquaFile).addMetadata({
-      name: `proof-${Date.now()}.json`
+      name: aquaFile.name // Keep original filename for verification
     })
 
     console.log('   ✅ Aqua proof uploaded:', aquaUpload.cid)

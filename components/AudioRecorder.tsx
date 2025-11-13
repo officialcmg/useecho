@@ -184,14 +184,22 @@ export function AudioRecorder() {
       } else {
         if (!aquaTree) return
         
-        // Content revision for subsequent chunks
+        // Content revision for subsequent chunks - need PREVIOUS chunk's hash
         console.log('   📄 Creating CONTENT revision...')
+        const previousChunk = chunks[latestChunk.chunkIndex - 1]
+        const prevHash = previousChunk?.verificationHash
+        
+        if (!prevHash) {
+          console.error('   ❌ Previous chunk hash not found!')
+          return
+        }
+        
         result = await createContentRevision(
           aquafier,
           aquaTree,
           latestChunk.audioBlob,
           latestChunk.fileName,
-          latestChunk.verificationHash || ''
+          prevHash
         )
         
         if (isErr(result)) {
@@ -349,6 +357,16 @@ export function AudioRecorder() {
             const revisionKeys = Object.keys(updatedTree.revisions)
             const finalHash = revisionKeys[revisionKeys.length - 1]
             
+            // 🔧 FIX SDK BUG: The SDK incorrectly uses verificationData (object) instead of 
+            // verificationHash (string) when calling maybeUpdateFileIndex, causing "[object Object]" keys.
+            // Manually fix the file_index here:
+            delete updatedTree.file_index['[object Object]']  // Remove broken key
+            updatedTree.file_index[finalHash] = 'recording_combined.webm'  // Add correct key
+            
+            console.log('   🔧 Fixed file_index - removed [object Object], added:', finalHash)
+            console.log('   📝 Final revision data:', updatedTree.revisions[finalHash])
+            console.log('   🔑 file_hash:', updatedTree.revisions[finalHash]?.file_hash)
+            
             setAquaTree(updatedTree)
             console.log('   ✅ Final revision created:', finalHash)
 
@@ -390,7 +408,33 @@ export function AudioRecorder() {
 
     const timestamp = Date.now()
 
-    // Download combined audio
+    // Download the EXACT audio that was hashed and stored in AquaTree
+    // Find the recording_combined.webm revision in the AquaTree
+    const fileIndexEntries = Object.entries(aquaTree?.file_index || {})
+    const combinedRevisionEntry = fileIndexEntries.find(([_, fileName]) => 
+      fileName === 'recording_combined.webm'
+    )
+    
+    if (combinedRevisionEntry && aquaTree) {
+      const [revisionKey] = combinedRevisionEntry
+      const revision = aquaTree.revisions[revisionKey]
+      
+      if (revision?.content) {
+        // Download the EXACT content that was hashed by the SDK
+        console.log('📥 Downloading audio from AquaTree embedded content')
+        const finalAudio = new Blob([revision.content], { type: 'audio/webm' })
+        const audioUrl = URL.createObjectURL(finalAudio)
+        const audioLink = document.createElement('a')
+        audioLink.href = audioUrl
+        audioLink.download = `echo-recording-${timestamp}.webm`
+        audioLink.click()
+        URL.revokeObjectURL(audioUrl)
+        return
+      }
+    }
+    
+    // Fallback: Create from chunks (might not match hash!)
+    console.warn('⚠️  No embedded content found, creating from chunks (may not match hash)')
     const audioBlobs = chunks.map((c) => c.audioBlob)
     const finalAudio = new Blob(audioBlobs, { type: 'audio/webm' })
     const audioUrl = URL.createObjectURL(finalAudio)
@@ -457,10 +501,10 @@ export function AudioRecorder() {
       const aquaJson = JSON.stringify(exportData, null, 2)
       const aquaFileBlob = new Blob([aquaJson], { type: 'application/json' })
 
-      // 3. Create form data
+      // 3. Create form data - USE EXACT FILENAMES FROM AQUATREE!
       const formData = new FormData()
-      formData.append('audio', audioFile, 'recording.webm')
-      formData.append('aqua', aquaFileBlob, 'proof.json')
+      formData.append('audio', audioFile, 'recording_combined.webm') // Must match AquaTree final revision
+      formData.append('aqua', aquaFileBlob, 'recording.aqua.json')   // Standard aqua proof filename
       formData.append('evmAddress', user.wallet.address)
       if (nostrKeys?.npub) {
         formData.append('nostrNpub', nostrKeys.npub)
