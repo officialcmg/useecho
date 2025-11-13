@@ -1,8 +1,8 @@
-# ECHO 🎙️
+# echo 🎙️
 
 **Tamper-Proof Audio Recording with Cryptographic Verification**
 
-ECHO is a revolutionary audio recording app that creates unforgeable proof of authenticity using:
+echo is a revolutionary audio recording app that creates unforgeable proof of authenticity using:
 - **Aqua Protocol** for cryptographic file verification
 - **Privy** for seamless email authentication  
 - **Nostr** for decentralized witnessing

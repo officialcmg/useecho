@@ -84,22 +84,46 @@ export function VerificationDisplay({ verificationResult }: VerificationDisplayP
           <div className="mb-4">
             <div className="text-gray-400 text-xs mb-1">Recording Time</div>
             <div className="font-medium text-base">
-              {new Date(verificationResult.extractedInfo.startTime).toLocaleString('en-US', {
-                month: '2-digit',
-                day: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: true
-              })}
-              <span className="text-gray-500 mx-2">→</span>
-              {new Date(verificationResult.extractedInfo.endTime).toLocaleString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: true
-              })}
+              {(() => {
+                const startDate = new Date(verificationResult.extractedInfo.startTime)
+                const endDate = new Date(verificationResult.extractedInfo.endTime)
+                const sameDay = startDate.toDateString() === endDate.toDateString()
+                
+                return (
+                  <>
+                    {startDate.toLocaleString('en-US', {
+                      month: '2-digit',
+                      day: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: true
+                    })}
+                    <span className="text-gray-500 mx-2">→</span>
+                    {sameDay ? (
+                      // Same day: show only time
+                      endDate.toLocaleString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: true
+                      })
+                    ) : (
+                      // Different day: show full date and time
+                      endDate.toLocaleString('en-US', {
+                        month: '2-digit',
+                        day: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: true
+                      })
+                    )}
+                  </>
+                )
+              })()}
             </div>
           </div>
         )}

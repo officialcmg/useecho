@@ -1,22 +1,84 @@
 import { Header } from '@/components/Header'
 import { AudioRecorder } from '@/components/AudioRecorder'
+import Image from 'next/image'
+import { ShieldCheck } from 'lucide-react'
 
 export default function Home() {
   return (
     <>
       <Header />
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
-            ECHO
-          </h1>
-          <p className="text-gray-400 text-lg">
-            Record tamper-proof audio with cryptographic verification
-          </p>
-          <p className="text-gray-500 text-sm mt-2">
-            Powered by Aqua Protocol & Nostr
-          </p>
+      <main className="container mx-auto px-4 py-12 max-w-4xl">
+        {/* Hero Section - Centered Layout */}
+        <div className="mb-16 text-center space-y-6">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600/10 border border-blue-500/30 rounded-full text-xs text-blue-400 backdrop-blur-sm">
+            <ShieldCheck className="w-3 h-3" />
+            Cryptographically Verified
+          </div>
+
+          {/* Main Heading */}
+          <div className="space-y-4">
+            <h1 className="text-5xl md:text-6xl font-bold tracking-tight leading-tight">
+              <span className="bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent">
+                Tamper-Proof
+              </span>
+              {' '}
+              <span className="text-white">Audio Recording</span>
+            </h1>
+            
+            <p className="text-gray-400 text-lg max-w-2xl mx-auto leading-relaxed">
+              Unforgeable proof of authenticity with cryptographic verification<br />
+              for every recording you make.
+            </p>
+          </div>
+
+          {/* Tech Stack Pills with Images */}
+          <div className="flex items-center justify-center gap-3 flex-wrap pt-2">
+            {/* Aqua Protocol */}
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-900/50 border border-gray-800/50 rounded-lg backdrop-blur-sm hover:border-purple-500/30 transition-colors">
+              <div className="relative w-5 h-5">
+                <Image
+                  src="https://raw.githubusercontent.com/inblockio/aquafier-js/refs/heads/main/web/public/images/ico.png"
+                  alt="Aqua Protocol"
+                  width={20}
+                  height={20}
+                  className="object-contain"
+                />
+              </div>
+              <span className="text-sm text-gray-300">Aqua</span>
+            </div>
+
+            {/* Nostr */}
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-900/50 border border-gray-800/50 rounded-lg backdrop-blur-sm hover:border-orange-500/30 transition-colors">
+              <div className="relative w-5 h-5">
+                <Image
+                  src="https://haven.accioly.social/cfa0d8344c7577bde446d35bb1d61c1c65b07aeb0897169bff6bd44f03f00911.svg"
+                  alt="Nostr"
+                  width={20}
+                  height={20}
+                  className="object-contain"
+                />
+              </div>
+              <span className="text-sm text-gray-300">Nostr</span>
+            </div>
+
+            {/* IPFS */}
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-900/50 border border-gray-800/50 rounded-lg backdrop-blur-sm hover:border-cyan-500/30 transition-colors">
+              <div className="relative w-5 h-5">
+                <Image
+                  src="https://docs.ipfs.tech/images/ipfs-logo.svg"
+                  alt="IPFS"
+                  width={20}
+                  height={20}
+                  className="object-contain"
+                />
+              </div>
+              <span className="text-sm text-gray-300">IPFS</span>
+            </div>
+          </div>
         </div>
+
+        {/* Recorder Component */}
         <AudioRecorder />
       </main>
     </>

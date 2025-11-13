@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { usePrivy } from '@privy-io/react-auth'
-import { Mic, Square, Download, Loader2, CheckCircle, Radio } from 'lucide-react'
+import { Mic, Square, Download, Loader2, CheckCircle, Radio, Copy, ExternalLink, X } from 'lucide-react'
 import { useRecording } from '@/hooks/useRecording'
 import { useNostr } from '@/hooks/useNostr'
 import {
@@ -26,7 +26,7 @@ import type Aquafier from 'aqua-js-sdk/web'
 const WITNESS_EVERY_N_CHUNKS = 10
 
 export function AudioRecorder() {
-  const { ready, authenticated, user, signMessage } = usePrivy()
+  const { ready, authenticated, user, signMessage, login } = usePrivy()
   const { isRecording, chunks, error, startRecording, stopRecording, resetRecording } =
     useRecording()
   const { publishWitness } = useNostr()
@@ -39,6 +39,8 @@ export function AudioRecorder() {
   const [witnesses, setWitnesses] = useState<NostrWitness[]>([])
   const [totalSize, setTotalSize] = useState(0)
   const [isInitializingKeys, setIsInitializingKeys] = useState(false)
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [uploadedRecording, setUploadedRecording] = useState<any>(null)
 
   // Initialize Aquafier
   useEffect(() => {
@@ -109,6 +111,27 @@ export function AudioRecorder() {
       console.log('   Setting nostrKeys state...')
       setNostrKeys(keys)
       console.log('   ✅ NostrKeys state updated!')
+
+      // Save user to database
+      try {
+        console.log('💾 Saving user to database...')
+        const response = await fetch('/api/user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            evm_address: walletAddress,
+            nostr_npub: keys.npub,
+          })
+        })
+        
+        if (response.ok) {
+          console.log('   ✅ User saved to database')
+        } else {
+          console.warn('   ⚠️ Failed to save user (non-critical):', await response.text())
+        }
+      } catch (dbErr) {
+        console.warn('   ⚠️ Database save failed (non-critical):', dbErr)
+      }
     } catch (err) {
       console.error('❌ Failed to derive Nostr keys:')
       console.error('   Error type:', err instanceof Error ? err.constructor.name : typeof err)
@@ -241,7 +264,7 @@ export function AudioRecorder() {
   const witnessChunk = async (chunkIndex: number, verificationHash: string) => {
     try {
       console.log('      📡 Publishing to Nostr relays...')
-      const content = `ECHO Audio Recording Witness\nChunk: ${chunkIndex + 1}\nHash: ${verificationHash}\nWallet: ${user?.wallet?.address}\nNostr: ${nostrKeys.npub}`
+      const content = `echo Audio Recording Witness\nChunk: ${chunkIndex + 1}\nHash: ${verificationHash}\nWallet: ${user?.wallet?.address}\nNostr: ${nostrKeys.npub}`
 
       const { eventId, relays } = await publishWitness(
         nostrKeys.privateKey,
@@ -461,34 +484,80 @@ export function AudioRecorder() {
 
       console.log('✅ Upload successful!')
       console.log('🔗 Share URL:', result.shareUrl)
+      console.log('📦 Audio CID:', result.recording.audio_cid)
+      console.log('📄 Proof CID:', result.recording.aqua_cid)
 
-      // 5. Show share URL to user
-      setProcessingStatus('✅ Upload complete!')
+      // Save share URL and recording data to state
+      setShareUrl(result.shareUrl)
+      setUploadedRecording(result.recording)
       
-      // Copy to clipboard
-      await navigator.clipboard.writeText(result.shareUrl)
-
-      // Show success message
-      alert(
-        `✅ Recording uploaded to IPFS!\n\n` +
-        `🔗 Share link (copied to clipboard):\n${result.shareUrl}\n\n` +
-        `📦 Audio CID: ${result.recording.audio_cid}\n` +
-        `📄 Proof CID: ${result.recording.aqua_cid}`
-      )
+      // Reset loading state
+      setIsProcessing(false)
+      setProcessingStatus('')
 
     } catch (error) {
       console.error('❌ Upload error:', error)
-      alert(`❌ Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    } finally {
       setIsProcessing(false)
-      setProcessingStatus('')
+      setProcessingStatus(`❌ ${error instanceof Error ? error.message : 'Upload failed'}`)
+      
+      // Auto-clear error after 5 seconds
+      setTimeout(() => {
+        setProcessingStatus('')
+      }, 5000)
     }
+  }
+
+  const [copySuccess, setCopySuccess] = useState(false)
+  
+  const handleCopyLink = async () => {
+    if (!shareUrl) return
+    
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setCopySuccess(true)
+      setTimeout(() => setCopySuccess(false), 2000)
+    } catch (err) {
+      // Fallback for browsers that don't support clipboard API
+      const textArea = document.createElement('textarea')
+      textArea.value = shareUrl
+      textArea.style.position = 'fixed'
+      textArea.style.opacity = '0'
+      document.body.appendChild(textArea)
+      textArea.select()
+      try {
+        document.execCommand('copy')
+        setCopySuccess(true)
+        setTimeout(() => setCopySuccess(false), 2000)
+      } catch (e) {
+        console.error('Copy failed:', e)
+      }
+      document.body.removeChild(textArea)
+    }
+  }
+
+  const handleNewRecording = () => {
+    setShareUrl(null)
+    setUploadedRecording(null)
+    resetRecording()
+    setWitnesses([])
+    setAquaTree(null)
+    setTotalSize(0)
   }
 
   if (!ready || !authenticated) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-400">Please log in to start recording</p>
+      <div className="text-center py-16">
+        <div className="max-w-md mx-auto space-y-4">
+          <p className="text-gray-400 mb-6">Ready to create tamper-proof recordings?</p>
+          <button
+            onClick={login}
+            className="group relative px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:scale-105 text-lg"
+          >
+            Sign In to Start Recording
+            <div className="absolute inset-0 rounded-xl bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          </button>
+          <p className="text-xs text-gray-500 mt-4">No wallet setup required • Email only</p>
+        </div>
       </div>
     )
   }
@@ -498,44 +567,65 @@ export function AudioRecorder() {
     
     return (
       <div className="max-w-2xl mx-auto">
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center">
-          <h2 className="text-2xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-            Generate Your Nostr Identity
-          </h2>
-          <p className="text-gray-400 mb-6">
-            ECHO uses Nostr for decentralized witnessing. Your Nostr keypair will be deterministically derived from your wallet signature.
-          </p>
+        <div className="relative overflow-hidden bg-gradient-to-br from-blue-900/20 via-gray-900 to-purple-900/20 border border-blue-500/20 rounded-2xl p-8 md:p-10 shadow-2xl">
+          {/* Decorative gradient orb */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -z-10"></div>
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl -z-10"></div>
           
-          {hasWallet ? (
-            <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 mb-6">
-              <p className="text-sm text-gray-400 mb-1">Your Wallet</p>
-              <p className="font-mono text-xs text-blue-400 break-all">{user?.wallet?.address}</p>
+          <div className="text-center relative z-10">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600/20 border border-blue-500/30 rounded-2xl mb-4">
+              <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
             </div>
-          ) : (
-            <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 mb-6">
-              <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-blue-500" />
-              <p className="text-sm text-gray-400">Creating your embedded wallet...</p>
-            </div>
-          )}
-
-          <button
-            onClick={initializeNostrKeys}
-            disabled={isInitializingKeys || !hasWallet}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed px-8 py-4 rounded-xl font-semibold flex items-center justify-center gap-2 mx-auto transition"
-          >
-            {isInitializingKeys ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Generating Keys...
-              </>
+            
+            <h2 className="text-2xl md:text-3xl font-bold mb-3 bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent">
+              Generate Your Nostr Identity
+            </h2>
+            <p className="text-gray-300 mb-8 max-w-lg mx-auto leading-relaxed">
+              echo uses Nostr for decentralized witnessing. Your Nostr keypair will be deterministically derived from your wallet signature.
+            </p>
+            
+            {hasWallet ? (
+              <div className="bg-black/40 border border-blue-500/20 rounded-xl p-5 mb-8 backdrop-blur-sm">
+                <p className="text-sm text-blue-300 mb-2 font-medium">Your Wallet</p>
+                <p className="font-mono text-xs md:text-sm text-cyan-400 break-all">{user?.wallet?.address}</p>
+              </div>
             ) : (
-              '🔐 Generate Nostr Keys'
+              <div className="bg-black/40 border border-blue-500/20 rounded-xl p-6 mb-8 backdrop-blur-sm">
+                <Loader2 className="w-6 h-6 animate-spin mx-auto mb-3 text-blue-400" />
+                <p className="text-sm text-gray-300">Creating your embedded wallet...</p>
+              </div>
             )}
-          </button>
-          
-          <p className="text-sm text-gray-500 mt-4">
-            You'll be asked to sign a message to prove wallet ownership
-          </p>
+
+            <button
+              onClick={initializeNostrKeys}
+              disabled={isInitializingKeys || !hasWallet}
+              className="relative group bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed px-8 py-4 rounded-xl font-semibold flex items-center justify-center gap-2 mx-auto transition-all shadow-lg hover:shadow-blue-500/50 disabled:shadow-none"
+            >
+              {isInitializingKeys ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Generating Keys...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                  Generate Nostr Keys
+                </>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-xl opacity-0 group-hover:opacity-20 blur transition-opacity"></div>
+            </button>
+            
+            <p className="text-sm text-gray-400 mt-5 flex items-center justify-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              You'll be asked to sign a message to prove wallet ownership
+            </p>
+          </div>
         </div>
       </div>
     )
@@ -543,6 +633,86 @@ export function AudioRecorder() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
+      {/* Success Card - Show after upload */}
+      {shareUrl && uploadedRecording && (
+        <div className="bg-gradient-to-br from-green-900/20 to-blue-900/20 border-2 border-green-500/30 rounded-2xl p-6 md:p-8 shadow-2xl">
+          {/* Header */}
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center">
+                <CheckCircle className="w-7 h-7" />
+              </div>
+              <div>
+                <h2 className="text-xl md:text-2xl font-bold text-green-400">Recording Uploaded!</h2>
+                <p className="text-sm text-gray-400 mt-0.5">Your recording is ready to share</p>
+              </div>
+            </div>
+            <button
+              onClick={handleNewRecording}
+              className="p-2 hover:bg-gray-800 rounded-lg transition"
+              title="New Recording"
+            >
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+
+          {/* Share Link Box */}
+          <div className="bg-black/30 border border-gray-700 rounded-xl p-4 md:p-5 mb-4">
+            <div className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">Your Share Link</div>
+            <div className="text-blue-400 font-mono text-sm md:text-base break-all">
+              {shareUrl}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            <button
+              onClick={handleCopyLink}
+              className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition ${
+                copySuccess
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-800 hover:bg-gray-700 text-gray-200'
+              }`}
+            >
+              {copySuccess ? (
+                <>
+                  <CheckCircle className="w-5 h-5" />
+                  <span className="hidden sm:inline">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-5 h-5" />
+                  <span className="hidden sm:inline">Copy Link</span>
+                </>
+              )}
+            </button>
+            
+            <a
+              href={shareUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 rounded-xl font-semibold transition text-white"
+            >
+              <ExternalLink className="w-5 h-5" />
+              <span className="hidden sm:inline">Open Link</span>
+            </a>
+          </div>
+
+          {/* Info */}
+          <div className="flex flex-col sm:flex-row gap-3 text-xs text-gray-400 border-t border-gray-700 pt-4">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Share ID:</span>
+              <code className="text-gray-300 bg-black/30 px-2 py-1 rounded">{uploadedRecording.share_id}</code>
+            </div>
+            <div className="hidden sm:block text-gray-700">•</div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Created:</span>
+              <span className="text-gray-300">{new Date(uploadedRecording.created_at * 1000).toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Status Card */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">

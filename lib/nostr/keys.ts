@@ -39,12 +39,16 @@ export async function deriveNostrKeysFromSignature(signature: string): Promise<{
 }
 
 /**
- * Generate a deterministic message for Privy to sign
- * This message should be unique to the session to prevent replay attacks
+ * Generate a CONSTANT deterministic message for Privy to sign
+ * CRITICAL: This message must NEVER change, or users will get different Nostr keys!
+ * The signature of this exact message is used to derive the Nostr keypair.
  */
 export function generateNostrDerivationMessage(): string {
-  const timestamp = Date.now()
-  return `ECHO - Derive Nostr Identity\nTimestamp: ${timestamp}\n\nThis signature will be used to deterministically generate a Nostr keypair for witnessing audio recordings.`
+  return `ECHO - Derive Nostr Identity
+
+This signature will be used to deterministically generate your Nostr keypair for witnessing audio recordings.
+
+By signing this message, you authorize ECHO to derive a unique Nostr identity from your wallet signature.`
 }
 
 function hexToBytes(hex: string): Uint8Array {

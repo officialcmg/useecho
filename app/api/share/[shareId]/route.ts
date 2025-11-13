@@ -6,10 +6,10 @@ export const runtime = 'nodejs'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { shareId: string } }
+  { params }: { params: Promise<{ shareId: string }> }
 ) {
   try {
-    const { shareId } = params
+    const { shareId } = await params
 
     console.log('🔍 Fetching recording:', shareId)
 
@@ -27,23 +27,98 @@ export async function GET(
     console.log('   Audio CID:', recording.audio_cid)
     console.log('   Aqua CID:', recording.aqua_cid)
 
-    // 2. Fetch audio file from IPFS
-    console.log('   📥 Fetching audio from IPFS...')
-    const audioResponse = await pinata.gateways.get(recording.audio_cid)
-    const audioBlob = await audioResponse.data as Blob
+    // Helper function to retry IPFS fetch with exponential backoff
+    async function fetchFromIPFS(cid: string, maxRetries = 3): Promise<any> {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          console.log(`   📥 Fetching ${cid} (attempt ${attempt}/${maxRetries})...`)
+          const response = await pinata.gateways.get(cid)
+          
+          if (!response.data) {
+            throw new Error('No data in response')
+          }
+          
+          return response.data // Can be JSON, string, or Blob
+        } catch (error: any) {
+          console.error(`   ⚠️  Attempt ${attempt} failed:`, error.message)
+          
+          if (attempt === maxRetries) {
+            throw new Error(`IPFS fetch failed after ${maxRetries} attempts: ${error.message}`)
+          }
+          
+          // Exponential backoff: 1s, 2s, 4s
+          const delay = Math.pow(2, attempt - 1) * 1000
+          console.log(`   ⏳ Retrying in ${delay}ms...`)
+          await new Promise(resolve => setTimeout(resolve, delay))
+        }
+      }
+      throw new Error('Fetch failed') // Should never reach here
+    }
+
+    // 2. Fetch audio file from IPFS with retries
+    let audioBase64: string
+    try {
+      const audioData = await fetchFromIPFS(recording.audio_cid)
+      
+      // Audio files should always be Blobs
+      if (!(audioData instanceof Blob)) {
+        throw new Error(`Expected Blob for audio, got ${typeof audioData}`)
+      }
+      
+      // Convert to base64 for easier transmission
+      const audioArrayBuffer = await audioData.arrayBuffer()
+      audioBase64 = Buffer.from(audioArrayBuffer).toString('base64')
+      console.log('   ✅ Audio fetched')
+    } catch (error: any) {
+      console.error('   ❌ Audio fetch failed:', error.message)
+      return NextResponse.json(
+        { 
+          error: 'Audio file not available on IPFS yet',
+          details: 'The file may still be propagating. Please try again in a few moments.',
+          cid: recording.audio_cid
+        },
+        { status: 503 } // Service Unavailable
+      )
+    }
+
+    // 3. Fetch aqua proof JSON from IPFS with retries
+    let aquaData: any
+    try {
+      const aquaResponse = await fetchFromIPFS(recording.aqua_cid)
+      
+      console.log('   🔍 Aqua response type:', typeof aquaResponse)
+      console.log('   🔍 Is Blob?', aquaResponse instanceof Blob)
+      console.log('   🔍 Is Array?', Array.isArray(aquaResponse))
+      console.log('   🔍 Constructor:', aquaResponse?.constructor?.name)
+      
+      // Pinata returns different types based on content:
+      // - JSON files are already parsed (objects/arrays)
+      // - Text files are strings
+      // - Binary files are Blobs
+      if (typeof aquaResponse === 'string') {
+        console.log('   📝 Parsing string as JSON')
+        aquaData = JSON.parse(aquaResponse)
+      } else if (aquaResponse instanceof Blob) {
+        console.log('   📦 Converting Blob to JSON')
+        const text = await aquaResponse.text()
+        aquaData = JSON.parse(text)
+      } else {
+        console.log('   ✅ Using data as-is (already parsed JSON)')
+        // Already parsed JSON
+        aquaData = aquaResponse
+      }
+    } catch (error: any) {
+      console.error('   ❌ Aqua proof fetch failed:', error.message)
+      return NextResponse.json(
+        { 
+          error: 'Proof file not available on IPFS yet',
+          details: 'The file may still be propagating. Please try again in a few moments.',
+          cid: recording.aqua_cid
+        },
+        { status: 503 }
+      )
+    }
     
-    // Convert to base64 for easier transmission (or use signed URL)
-    const audioArrayBuffer = await audioBlob.arrayBuffer()
-    const audioBase64 = Buffer.from(audioArrayBuffer).toString('base64')
-
-    console.log('   ✅ Audio fetched')
-
-    // 3. Fetch aqua proof JSON from IPFS
-    console.log('   📥 Fetching aqua proof from IPFS...')
-    const aquaResponse = await pinata.gateways.get(recording.aqua_cid)
-    const aquaText = await aquaResponse.data.text()
-    const aquaData = JSON.parse(aquaText)
-
     console.log('   ✅ Aqua proof fetched')
 
     // 4. Return data
