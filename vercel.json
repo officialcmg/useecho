@@ -1,0 +1,13 @@
+{
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "regions": ["iad1"],
+  "env": {
+    "NEXT_PUBLIC_PRIVY_APP_ID": "@privy_app_id",
+    "PINATA_JWT": "@pinata_jwt",
+    "PINATA_GATEWAY_URL": "@pinata_gateway_url",
+    "DATABASE_URL": "@database_url"
+  }
+}
