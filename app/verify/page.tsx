@@ -129,6 +129,13 @@ export default function VerifyPage() {
           rev.revision_type === 'signature'
         )
         
+        // Calculate proper end time using startTime + duration
+        const startTime = timestamps.length > 0 ? timestamps[0] : null
+        const durationMs = aquaData.metadata?.duration 
+          ? aquaData.metadata.duration * 1000 
+          : 0
+        const endTime = startTime ? startTime + durationMs : (timestamps.length > 0 ? timestamps[timestamps.length - 1] : null)
+        
         setVerificationResult({
           success: true,
           aquaTree: reconstructedTree,
@@ -136,8 +143,8 @@ export default function VerifyPage() {
           details: result.data,
           audioFileProvided: !!audioFile,
           extractedInfo: {
-            startTime: timestamps.length > 0 ? timestamps[0] : null,
-            endTime: timestamps.length > 0 ? timestamps[timestamps.length - 1] : null,
+            startTime,
+            endTime,
             walletAddress,
             totalRevisions: revisionEntries.length,
             fileRevisions: fileRevisions.length,

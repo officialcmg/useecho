@@ -148,14 +148,21 @@ export default function SharePage() {
           rev.revision_type === 'signature'
         )
         
+        // Calculate proper end time using startTime + duration
+        const startTime = timestamps.length > 0 ? timestamps[0] : null
+        const durationMs = shareData.aquaData.metadata?.duration 
+          ? shareData.aquaData.metadata.duration * 1000 
+          : 0
+        const endTime = startTime ? startTime + durationMs : (timestamps.length > 0 ? timestamps[timestamps.length - 1] : null)
+        
         setVerificationResult({
           success: true,
           aquaTree: reconstructedTree,
           metadata: shareData.aquaData.metadata,
           details: result.data,
           extractedInfo: {
-            startTime: timestamps.length > 0 ? timestamps[0] : null,
-            endTime: timestamps.length > 0 ? timestamps[timestamps.length - 1] : null,
+            startTime,
+            endTime,
             walletAddress,
             totalRevisions: revisionEntries.length,
             fileRevisions: fileRevisions.length,
