@@ -244,6 +244,6 @@ if (enableScalar) {  // ← Remove the "!" negation
 
 ---
 
-**Discovered By:** ECHO Team  
+**Discovered By:** USEECHO Team  
 **Contact:** chrismg.eth 
 **Repository:** https://github.com/inblockio/aqua-js-sdk
